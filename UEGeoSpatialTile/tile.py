@@ -20,34 +20,95 @@ TILE_SZ = 256
 max_h = 0
 min_h = 0
 
-def downloadTile(zoom, x, y):
+# def downloadTile(zoom, x, y):
 
-	url = f'https://cyberjapandata.gsi.go.jp/xyz/dem5a_png/{zoom}/{x}/{y}.png'
+# 	url = f'https://cyberjapandata.gsi.go.jp/xyz/dem5a_png/{zoom}/{x}/{y}.png'
+# 	print(url)
+# 	resp = requests.get(url)
+# 	folder = 'color'
+# 	fname = ''
+# 	if resp.status_code == 200:
+
+# 		os.makedirs(folder,exist_ok=True)
+# 		contentType = resp.headers['Content-Type']
+# 		fname = f'{zoom}_{x}_{y}.png'
+
+# 		out_path = os.path.join(folder, fname)
+# 		with open(out_path, 'wb') as out_path:
+# 			out_path.write(resp.content)
+# 			out_path.close()
+
+# 	return fname
+
+def downloadTile(url, fname, folder):
+
+	#url = f'https://cyberjapandata.gsi.go.jp/xyz/nendophoto{year}/{zoom}/{x}/{y}.png'
 	print(url)
 	resp = requests.get(url)
-	folder = 'color'
-	fname = ''
+	#folder = 'dl'
+
 	if resp.status_code == 200:
 
 		os.makedirs(folder,exist_ok=True)
 		contentType = resp.headers['Content-Type']
-		fname = f'{zoom}_{x}_{y}.png'
+		#fname = f'{zoom}_{x}_{y}.png'
 
 		out_path = os.path.join(folder, fname)
 		with open(out_path, 'wb') as out_path:
 			out_path.write(resp.content)
 			out_path.close()
+	else:
+		fname = ''
 
 	return fname
 
-def downloadMatrixTiles(zoom, x, y, matrix):
+def downloadTiles( url, zoom, x, y, matrix, folder):
 
 	row = []
 	col = []
 
 	for _y in range(matrix):
 		for _x in range(matrix):
-			fname = downloadTile(zoom, x+_x, y+_y)
+			_url = f'{url}{zoom}/{x+_x}/{y+_y}.png'
+			#fname = downloadTile(zoom, x+_x, y+_y)
+			fname = f'{zoom}_{x+_x}_{y+_y}.png'
+			fname = downloadTile(_url, fname, folder)
+			col.append(fname)
+		row.append(col)
+		col = []
+	
+	print(row)
+	return row
+
+def downloadHeightTiles( zoom, x, y, matrix, folder):
+
+	row = []
+	col = []
+
+	for _y in range(matrix):
+		for _x in range(matrix):
+			url = f'https://cyberjapandata.gsi.go.jp/xyz/dem5a_png/{zoom}/{x+_x}/{y+_y}.png'
+			#fname = downloadTile(zoom, x+_x, y+_y)
+			fname = f'{zoom}_{x+_x}_{y+_y}.png'
+			fname = downloadTile(url, fname, folder)
+			col.append(fname)
+		row.append(col)
+		col = []
+	
+	print(row)
+	return row
+
+def downloadAirealTiles( year, zoom, x, y, matrix, folder):
+
+	row = []
+	col = []
+
+	for _y in range(matrix):
+		for _x in range(matrix):
+			url = f'https://cyberjapandata.gsi.go.jp/xyz/nendophoto{year}/{zoom}/{x+_x}/{y+_y}.png'
+			#fname = downloadTile(zoom, x+_x, y+_y)
+			fname = f'{zoom}_{x+_x}_{y+_y}.png'
+			fname = downloadTile(url, fname, folder)
 			col.append(fname)
 		row.append(col)
 		col = []
@@ -144,7 +205,7 @@ def convGray16(folder, path, ftype):
 	return out_fname
 
 
-def convGrayRatio(in_file, out_file):
+def toGrayPNG16(in_file, out_file):
 
 	max_h = 0
 	min_h = 0
@@ -160,7 +221,7 @@ def convGrayRatio(in_file, out_file):
 			elif h == LIMIT:
 				h = 0 # NA
 			elif h > LIMIT:
-				h = (h - MINUS) / 10
+				h = (h - MINUS)
 
 			if max_h < h:
 				max_h = h
@@ -182,7 +243,7 @@ def convGrayRatio(in_file, out_file):
 			elif h == LIMIT:
 				h = 0 # NA
 			elif h > LIMIT:
-				h = (h - MINUS) / 10
+				h = (h - MINUS)
 
 			max_h
 			img2[y][x] = (h/max_h)*65535
@@ -223,20 +284,48 @@ def makeTile( files ,out_file):
 	Image.fromarray(img2).save(out_fname)
 
 
-def makeTileColor( folder, files, out_file):
+def makeTile( folder, files, out_file, color):
 	
 	# n*n = 1,4,9,18,25...
 	n = len(files)
 	print(n) 
-	dst = Image.new('RGB', (n*TILE_SZ, n*TILE_SZ))
+	dst = Image.new(color, (n*TILE_SZ, n*TILE_SZ))
 	
 	row = 0
 	for f in files:
 		for _n in range(n):
 			try:
-				img = Image.open( f'{folder}{f[_n]}' )
+				img = Image.open( f'{folder}/{f[_n]}' )
 				dst.paste( img, ( _n*TILE_SZ, row*TILE_SZ))
 			except Exception as ex:
+				print(f'no file. {f[_n]}')
+		
+		row = row + 1
+
+	if out_file == None:
+		out_fname = 'tile.png'
+	else:
+		out_fname = out_file
+	dst.save(out_fname)
+
+
+def makeRGBATile( folder, files, out_file):
+	
+	# n*n = 1,4,9,18,25...
+	n = len(files)
+	print(n)
+
+	dst = Image.new('RGBA', (n*TILE_SZ, n*TILE_SZ))
+	
+	row = 0
+	for f in files:
+		for _n in range(n):
+			try:
+				img = Image.open( f'{folder}/{f[_n]}' )
+				dst.paste( img, ( _n*TILE_SZ, row*TILE_SZ))
+
+			except Exception as ex:
+				# dst.paste( no_tile, ( _n*TILE_SZ, row*TILE_SZ))
 				print(f'no file. {f[_n]}')
 		
 		row = row + 1
@@ -246,7 +335,6 @@ def makeTileColor( folder, files, out_file):
 	else:
 		out_fname = out_file
 	dst.save(out_fname)
-
 
 	
 
@@ -269,12 +357,41 @@ def makeTileColor( folder, files, out_file):
 # makeTile( mat_gray, 'sagami2.png')
 
 # 三宅島
-mat = downloadMatrixTiles(14, 14539, 6537, 6)
-makeTileColor('./color/', mat, 'miyake_color.png')
-convGrayRatio('miyake_color.png','miyake_gray.png')
+# folder = 'height'
+# mat = downloadHeightTiles(14, 14539, 6537, 6, folder)
+# makeTile(folder, mat, 'height.png','RGB')
+# toGrayPNG16('miyake_height.png', 'gray.png')
 
-# mat_gray = makeGrayPngFiles(mat)
-# makeTile(mat_gray)
+# 三宅島　航空写真
+# folder = 'aireal'
+# mat = downloadAirealTiles(2010, 14, 14539, 6537, 6, folder)
+# makeTile(folder, mat, 'tex.png','RGBA')
+
+# 火山
+# folder = 'relief'
+# mat = downloadTiles( 'https://cyberjapandata.gsi.go.jp/xyz/relief/', 14, 14539, 6537, 6, folder)
+# makeTile( folder, mat, f'{folder}.png','RGBA')
+
+# # 火山
+# folder = 'vbm'
+# mat = downloadTiles( 'https://cyberjapandata.gsi.go.jp/xyz/vbm/', 14, 14539, 6537, 6, folder)
+# makeTile( folder, mat, f'{folder}.png','RGBA')
+
+# folder = 'vbmd_pm'
+# mat = downloadTiles( 'https://cyberjapandata.gsi.go.jp/xyz/vbmd_pm/', 14, 14539, 6537, 6, folder)
+# makeTile( folder, mat, f'{folder}.png','RGBA')
+
+# folder = 'vbmd_colorrel'
+# mat = downloadTiles( 'https://cyberjapandata.gsi.go.jp/xyz/vbmd_colorrel/', 14, 14539, 6537, 6, folder)
+# makeTile( folder, mat, f'{folder}.png','RGBA')
+
+folder = 'vlcd'
+mat = downloadTiles( 'https://cyberjapandata.gsi.go.jp/xyz/vlcd/', 14, 14539, 6537, 6, folder)
+makeTile( folder, mat, f'{folder}.png','RGBA')
+
+
+
+
 
 # 浅間山
 # mat = downloadMatrixTiles(14, 14494, 6409, 6)
